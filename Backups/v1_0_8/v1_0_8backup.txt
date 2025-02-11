@@ -1,0 +1,184 @@
+let video;
+let stream;
+let faceVisible = true;
+let lastFaceState = null;
+let lastDetectionTime = Date.now();
+let detectionInitialized = false; // Tracks if first detection has been handled
+let firstDetectionWasFace = null; // Tracks whether the first detection was a face or not
+
+window.addEventListener("message", (event) => {
+    if (event.source !== window) return;
+
+    if (event.data.action === "enableCamera") {
+        enableCamera();
+    } else if (event.data.action === "disableCamera") {
+        disableCamera();
+    }
+});
+
+async function enableCamera() {
+    if (video) return;
+
+    video = document.createElement("video");
+    video.style.position = "fixed";
+    video.style.top = "-1000px"; 
+    document.body.appendChild(video);
+
+    await navigator.mediaDevices.getUserMedia({ video: true })
+        .then((camStream) => {
+            stream = camStream;
+            video.srcObject = stream;
+        })
+        .catch((err) => console.error("Webcam access denied", err));
+
+    video.onloadedmetadata = async () => {
+        video.play();
+
+        await Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri(chrome.runtime.getURL("models")),
+            faceapi.nets.faceLandmark68Net.loadFromUri(chrome.runtime.getURL("models")),
+            faceapi.nets.faceRecognitionNet.loadFromUri(chrome.runtime.getURL("models")),
+        ]);
+
+        checkFace();
+    };
+}
+
+async function disableCamera() {
+    if (!video) return;
+
+    const tracks = stream.getTracks();
+    tracks.forEach(track => track.stop());
+    video.remove();
+    video = null;
+}
+
+async function checkFace() {
+    const canvas = faceapi.createCanvasFromMedia(video);
+    document.body.append(canvas);
+
+    canvas.width = video.width;
+    canvas.height = video.height;
+
+    console.log('Starting face detection...');
+
+    setInterval(async () => {
+        if (video && video.readyState === 4 && !video.paused && !video.ended) {
+            console.log('Detecting faces...');
+            const detections = await faceapi.detectAllFaces(video)
+                .withFaceLandmarks()
+                .withFaceDescriptors();
+
+            console.log(`Detections found: ${detections.length}`);
+
+            canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+
+            let keyLandmarksVisible = false;
+
+            detections.forEach(face => {
+                const landmarks = face.landmarks;
+                const leftEye = landmarks.getLeftEye();
+                const rightEye = landmarks.getRightEye();
+                const nose = landmarks.getNose();
+                const mouth = landmarks.getMouth();
+                const leftEyebrow = landmarks.getLeftEyebrow ? landmarks.getLeftEyebrow() : null;
+                const rightEyebrow = landmarks.getRightEyebrow ? landmarks.getRightEyebrow() : null;
+
+                const eyesVisible = leftEye.length > 0 && rightEye.length > 0;
+                const noseVisible = nose.length > 0;
+                const mouthVisible = mouth.length > 0;
+                const eyebrowsVisible = (leftEyebrow && rightEyebrow) ? leftEyebrow.length > 0 && rightEyebrow.length > 0 : false;
+
+                if (eyesVisible || noseVisible || mouthVisible || eyebrowsVisible) {
+                    keyLandmarksVisible = true;
+                }
+
+                if (keyLandmarksVisible) {
+                    const drawBox = new faceapi.draw.DrawBox(face.detection.box, { label: 'Face' });
+                    drawBox.draw(canvas);
+                }
+            });
+
+            if (!detectionInitialized) {
+                detectionInitialized = true; // First detection processed
+                firstDetectionWasFace = keyLandmarksVisible; // Store if first detection was a face
+
+                if (!keyLandmarksVisible) {
+                    console.log("No face detected");
+                    console.log("Spacebar");
+                    simulateSpacebarPress(); // Press space when first detection is no face
+                } else {
+                    console.log("Face detected");
+                }
+            }
+
+            if (!keyLandmarksVisible) {
+                console.log("No face detected");
+
+                if (firstDetectionWasFace) {
+                    console.log("Spacebar");
+                    simulateSpacebarPress();
+                    firstDetectionWasFace = false; // Reset so it only happens on first switch
+                }
+            } else {
+                console.log("Face detected");
+
+                if (!firstDetectionWasFace) {
+                    console.log("Spacebar");
+                    simulateSpacebarPress();
+                    firstDetectionWasFace = true; // Reset so it only happens on first switch
+                }
+            }
+        }
+    }, 1000);
+}
+
+function simulateSpacebarPress() {
+    const spaceDownEvent = new KeyboardEvent('keydown', {
+        key: ' ',       
+        code: 'Space',  
+        keyCode: 32,    
+        which: 32,      
+        bubbles: true   
+    });
+
+    const spaceUpEvent = new KeyboardEvent('keyup', {
+        key: ' ',       
+        code: 'Space',  
+        keyCode: 32,    
+        which: 32,      
+        bubbles: true   
+    });
+
+    document.dispatchEvent(spaceDownEvent);
+    setTimeout(() => {
+        document.dispatchEvent(spaceUpEvent);
+    }, 100);
+}
+
+
+// Function to check if the current URL is a YouTube video
+function checkYouTubeVideoURL() {
+    return window.location.href.includes("youtube.com/watch?");
+}
+
+// Function to reload the extension and reset console when the URL changes
+let lastURL = window.location.href;
+setInterval(() => {
+    if (window.location.href !== lastURL) {
+        console.clear(); // Clears the console
+        console.log("URL changed, reloading page for a fresh start...");
+        lastURL = window.location.href;
+        location.reload(); // Fully reloads the page, resetting everything
+    }
+}, 1000); // Check every second
+
+// Run the extension only if on a YouTube video page
+if (checkYouTubeVideoURL()) {
+    console.log("YouTube video detected, running extension...");
+    enableCamera(); // Start the extension's main functionality
+} else {
+    console.log("Not a YouTube video, extension inactive.");
+}
+
+
