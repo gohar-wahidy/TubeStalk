@@ -13,6 +13,12 @@ TubeStalk is a browser extension that enhances your YouTube viewing experience b
 
 TubeStalk leverages advanced face detection models to determine when you are looking at the screen. The extension uses a combination of face landmark detection and recognition to ensure accurate and reliable performance.
 
+### Technologies Used
+
+- **face-api.js**: A JavaScript library for face detection and recognition, providing the core functionality for detecting when a user is looking at the screen.
+- **JavaScript**: The primary programming language used for developing the extension.
+- **HTML/CSS**: Used for creating the user interface of the extension.
+
 ## Installation
 
 1. Clone the repository:
@@ -37,10 +43,6 @@ TubeStalk leverages advanced face detection models to determine when you are loo
 ## Contributing
 
 We welcome contributions from the community! Whether it's bug fixes, new features, or documentation improvements, feel free to open a pull request or issue.
-
-## License
-
-TubeStalk is open-source and available under the MIT License. See the [LICENSE](LICENSE) file for more information.
 
 ## Acknowledgments
 
