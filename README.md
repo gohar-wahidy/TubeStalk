@@ -17,7 +17,7 @@ TubeStalk leverages advanced face detection models to determine when you are loo
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/TubeStalk.git
+   git clone https://github.com/gohar-wahidy/TubeStalk.git
    ```
 
 2. Open your browser's extension page (usually found in the settings menu).
